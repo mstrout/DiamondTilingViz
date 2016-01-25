@@ -1,0 +1,406 @@
+/*!
+ * \file slice-viz.cpp
+ *
+ * \brief Driver for visualizing 2D slices of 3D diamond
+ *        or pipelined tiles.
+ *
+ * \date Started: 9/21/13
+ *
+ * \authors Michelle Strout
+ *
+ * Copyright (c) 2013, Colorado State University <br>
+ * All rights reserved. <br>
+ */
+#include "CellField.hpp"
+#include "CellFieldArray.hpp"
+#include "svgprinter.hpp"
+#include "CmdParams.h"
+#include <fstream>
+#include <string>
+#include <sstream>
+#include <iostream>
+
+//==============================================
+// Global parameters with their default values.
+int T = 4;
+int Tstart = 1;
+int Tend = 4;
+int N = 10;
+int grid_spacing = -1;
+int cell_spacing = 60;
+int cell_radius = 20;
+bool label = false;
+bool debug = false;
+int color_incr = 1;
+bool one_tile = false;
+int one_tile_c1 = 1;
+int one_tile_c2 = 1;
+int one_tile_c3 = -1;
+
+typedef enum {
+    pipelined_4x4x4,
+    diamonds_3x3x3,
+    diamonds_6x6x6,
+    diamonds_3x6x6,
+    diamonds_6x3x6,
+    diamonds_6x6x3,
+    diamonds_9x9x9,
+    diamonds_12x12x12,
+    diamonds_15x15x15,
+    diamonds_18x18x18,
+    diamonds_21x21x21,
+    diamond_prizms_6x6,
+    diamond_prizms_8x8,
+    diamond_prizms_12x12,
+    diamond_prizms_6x6_noping
+} tiling_type;
+tiling_type tilingChoice = diamonds_3x3x3;
+char tilingStr[MAXPOSSVALSTRING];
+#define num_TPairs 15
+static EnumStringPair TPairs[] = {{pipelined_4x4x4,"pipelined_4x4x4"},
+                        {diamonds_3x3x3,"diamonds_3x3x3"},
+                        {diamonds_6x6x6,"diamonds_6x6x6"},
+                        {diamonds_3x6x6,"diamonds_3x6x6"},
+                        {diamonds_6x3x6,"diamonds_6x3x6"},
+                        {diamonds_6x6x3,"diamonds_6x6x3"},
+                        {diamonds_9x9x9,"diamonds_9x9x9"},
+                        {diamonds_12x12x12,"diamonds_12x12x12"},
+                        {diamonds_15x15x15,"diamonds_15x15x15"},
+                        {diamonds_18x18x18,"diamonds_18x18x18"},
+                        {diamonds_21x21x21,"diamonds_21x21x21"},
+                        {diamond_prizms_6x6,"diamond_prizms_6x6"},
+                        {diamond_prizms_8x8,"diamond_prizms_8x8"},
+                        {diamond_prizms_12x12,"diamond_prizms_12x12"},
+                        {diamond_prizms_6x6_noping,"diamond_prizms_6x6_noping"}
+                };
+
+typedef enum {
+    normal,
+    halfradius,
+} gridspacing_type;
+gridspacing_type gridspacingChoice = normal;
+char gridspacingStr[MAXPOSSVALSTRING];
+#define num_GPairs 2
+static EnumStringPair GPairs[] = {{normal,"normal"},
+                                  {halfradius,"halfradius"}
+                                 };            
+
+//==============================================
+
+// Create the file name based on parameters.
+// Needs global parameter variables and TAU, SIGMA, and GAMMA defines.
+// example: pipelined-3x3x3-T4N10-c60r20
+std::string create_file_name() {
+    std::stringstream ss;
+    ss << tilingStr;
+    ss << "-T" << T << "N" << N;
+    ss << "-s" << Tstart << "e" << Tend;
+    ss << "-p" << grid_spacing 
+       << "c" << cell_spacing << "r" << cell_radius << "l" << label;
+    ss << "i" << color_incr;
+    ss << "-o" << one_tile;
+    if (one_tile) { 
+       ss << "." << one_tile_c1 << "." << one_tile_c2 << "." << one_tile_c3;
+    }
+    ss << ".svg";
+    
+    return ss.str();
+}
+
+void initParams(CmdParams * cmdparams)
+/*--------------------------------------------------------------*//*!
+  Uses a CmdParams object to describe all of the command line
+  parameters.
+
+  \author  Michelle Strout 9/21/13
+*//*--------------------------------------------------------------*/
+{
+
+    CmdParams_describeEnumParam(cmdparams, "tiling", 't', 1,
+            "specify the tiling to use",
+            TPairs, num_TPairs, diamonds_3x3x3);
+
+    CmdParams_describeNumParam(cmdparams,"numTimeSteps", 'T', 1,
+            "number of time steps",
+            1, 30, 4);
+
+    CmdParams_describeNumParam(cmdparams,"Tstart", 's', 1,
+            "start visualization at Tstart",
+            1, 30, 1);
+            
+    CmdParams_describeNumParam(cmdparams,"Tend", 'e', 1,
+            "end visualization at Tend, will default to T",
+            1, 30, -1);
+            
+    CmdParams_describeNumParam(cmdparams,"spatialDim", 'N', 1,
+            "2D data will be NxN", 
+            1, 50, 10);
+
+    CmdParams_describeEnumParam(cmdparams,"grid_spacing_approach", 'g', 1,
+            "approach for spacing between top of slices", 
+            GPairs, num_GPairs, normal);
+            
+    CmdParams_describeNumParam(cmdparams,"grid_spacing", 'p', 1,
+            "precise spacing between top of slices, "
+            "overrides grid spacing approach if set", 
+            1, 1000, -1);
+            
+    CmdParams_describeNumParam(cmdparams,"cell_spacing", 'c', 1,
+            "cell spacing between iteration circles", 
+            1, 100, 60);
+            
+    CmdParams_describeNumParam(cmdparams,"cell_radius", 'r', 1,
+            "radius for iteration circles", 
+            1, 100, 20);
+            
+    CmdParams_describeNumParam(cmdparams,"debug", 'd', 1,
+            "debug flag", 
+            0, 1, 0);
+            
+    CmdParams_describeNumParam(cmdparams,"label", 'l', 1,
+            "whether to put tile coordinates on iteration points or not", 
+            0, 1, 0);
+
+    CmdParams_describeNumParam(cmdparams,"color_incr", 'i', 1,
+            "amount to increment color by when tile changes", 
+            0, 10, 1);
+
+    CmdParams_describeNumParam(cmdparams,"one_tile", 'o', 1,
+            "whether to just color one tile", 
+            0, 1, 0);
+
+    CmdParams_describeNumParam(cmdparams,"one_tile_c1", '1', 1,
+            "c1 coord for one tile being shown", 
+            -10, 20, 1);
+
+    CmdParams_describeNumParam(cmdparams,"one_tile_c2", '2', 1,
+            "c2 coord for one tile being shown", 
+            -10, 20, 1);
+
+    CmdParams_describeNumParam(cmdparams,"one_tile_c1", '3', 1,
+            "c2 coord for one tile being shown", 
+            -10, 20, -1);
+
+}   
+
+// converts the tile coordinates to a string
+std::string tileCoordToString(int c1, int c2, int c3) {
+
+    std::stringstream ss;
+
+    switch (tilingChoice) {
+    
+        // Diamond prizms only have 2 dimensions of tiling.
+        case diamond_prizms_6x6:
+        case diamond_prizms_8x8:
+        case diamond_prizms_12x12:
+            ss << c1 << "," << c2;
+            break;
+        default:
+            ss << c1 << "," << c2 << "," << c3;
+            break;
+    }
+    
+    return ss.str();
+}
+
+// Array of colors.
+std::string svgColors[] = 
+//{"bisque","red","aqua","yellow","blue","green","fuchsia","lime","silver","coral","lavender","pink","powderblue","plum","palegreen"};
+{"red","yellow","green","lime","aqua","blue","fuchsia","silver","bisque","coral","lavender","pink","powderblue","plum","palegreen","teal","navy"};
+//{"maroon","red","olive","yellow","green","lime","teal","aqua","navy","blue","purple","fuchsia","black","grey","silver","white"};
+//{"yellow","green","aqua","navy","red","teal","fuchsia","lime","maroon","silver","olive","blue","black","purple","gray","white"};
+int num_colors = 17;
+
+// converts the tile coordinates to a string
+std::string tileCoordToColor(int c1, int c2, int c3) {
+    static int count = -1;
+    static int last_c1 = -99;
+    static int last_c2 = -99;
+    static int last_c3 = -99;
+
+    // We want to change the tile color if the tile coordinate
+    // has changed.
+
+    switch (tilingChoice) {
+    
+        // Diamond prizms only have 2 dimensions of tiling.
+        case diamond_prizms_6x6:
+        case diamond_prizms_8x8:
+        case diamond_prizms_12x12:
+            if (c1!=last_c1 || c2!=last_c2) {
+                last_c1 = c1;
+                last_c2 = c2;
+                last_c3 = c3;
+                count += color_incr;
+            }
+            break;
+        default:
+            if (c1!=last_c1 || c2!=last_c2 || c3!=last_c3) {
+                last_c1 = c1;
+                last_c2 = c2;
+                last_c3 = c3;
+                count += color_incr;
+            }
+            break;
+    }
+    
+    return svgColors[ count % num_colors ];
+}
+
+// Definitions and declarations needed for diamonds-tij-skew.is
+#include "eassert.h"
+#include "intops.h"
+//#define N 10
+//#define T T
+#define do_edge_pong(i,j) // nothing
+#define do_edge_ping(i,j) // nothing
+#define do_init_pong(i,j) // nothing
+#define startclock() // nothing
+
+int c1, c2, c3, c4, c5, c6, c7, c8;
+
+// The calc_ping and calc_pong macros are capturing the slices,
+// c1, c2, and c3 variables.
+#define calc_ping(t,i,j) { \
+    if (label) slices.setLabel(t,i,j,tileCoordToString(c1,c2,c3)); \
+    if (debug) { \
+      cout << "c1,c2,c3 = " << c1 << ", " << c2 << ", " << c3 << "    "; \
+      cout << "t,i,j = " << t << ", " << i << ", " << j << std::endl; \
+    } \
+    if (!one_tile || (c1==one_tile_c1 && c2==one_tile_c2 && c3==one_tile_c3)) {\
+      slices.setFill(t,i,j,tileCoordToColor(c1,c2,c3)); } }
+    
+#define calc_pong(t,i,j) { \
+    if (label) slices.setLabel(t,i,j,tileCoordToString(c1,c2,c3)); \
+    if (debug) { \
+      cout << "c1,c2,c3 = " << c1 << ", " << c2 << ", " << c3 << "    "; \
+      cout << "t,i,j = " << t << ", " << i << ", " << j << std::endl; \
+    } \
+    if (!one_tile || (c1==one_tile_c1 && c2==one_tile_c2 && c3==one_tile_c3)) {\
+      slices.setFill(t,i,j,tileCoordToColor(c1,c2,c3)); } }
+
+// Used for debugging problem with diamond prizms.
+#define calc(t,i,j) { \
+    if (label) slices.setLabel(t,i,j,tileCoordToString(c1,c2,c2)); \
+    if (debug) { \
+      cout << "c1,c2 = " << c1 << ", " << c2 << "    "; \
+      cout << "t,i,j = " << t << ", " << i << ", " << j << std::endl; \
+    } \
+    if (!one_tile || (c1==one_tile_c1 && c2==one_tile_c2)) {\
+      slices.setFill(t,i,j,tileCoordToColor(c1,c2,c2)); } }
+
+
+int main(int argc, char ** argv) {
+    // Do command-line parsing.
+    CmdParams *cmdparams = CmdParams_ctor(1);
+    initParams(cmdparams);
+    CmdParams_parseParams(cmdparams,argc,argv);
+    tilingChoice = (tiling_type)CmdParams_getValue(cmdparams,'t');
+    strncpy(tilingStr, CmdParams_getString(cmdparams,'t'), MAXPOSSVALSTRING);
+    T = CmdParams_getValue(cmdparams,'T');
+    Tstart = CmdParams_getValue(cmdparams,'s');
+    Tend = CmdParams_getValue(cmdparams,'e');
+    if (Tend<0) { Tend = T; }  // if Tend not set, then default for Tend is T
+    N = CmdParams_getValue(cmdparams,'N');
+    grid_spacing = CmdParams_getValue(cmdparams,'p');
+    gridspacingChoice = (gridspacing_type)CmdParams_getValue(cmdparams,'g');
+    cell_spacing = CmdParams_getValue(cmdparams,'c');
+    cell_radius = CmdParams_getValue(cmdparams,'r');
+    debug = CmdParams_getValue(cmdparams,'d');
+    label = CmdParams_getValue(cmdparams,'l');
+    color_incr = CmdParams_getValue(cmdparams,'i');
+    one_tile = CmdParams_getValue(cmdparams,'o');
+    one_tile_c1 = CmdParams_getValue(cmdparams,'1');
+    one_tile_c2 = CmdParams_getValue(cmdparams,'2');
+    one_tile_c3 = CmdParams_getValue(cmdparams,'3');
+
+    // Compute the spacing between slices.
+    if (grid_spacing<0) {
+        switch (gridspacingChoice) {
+            case normal:
+                grid_spacing = cell_spacing*(N+1);
+                break;
+            case halfradius:
+                grid_spacing = 0.5*(double)cell_radius;
+                break;
+        }
+    }
+
+    // Open the svg file and print the header.
+    std::string filename = create_file_name();
+    ofstream file(filename.c_str());
+        
+    // Specify file and height and width.
+    SVGPrinter svg(file, cell_spacing*(N+1) + ((Tend-Tstart+1)-1)*grid_spacing,
+                         (N+1)*cell_spacing);
+    svg.printHeader();
+    
+    // Declare the array of iteration spaces.
+    CellField::sSpacing = cell_spacing;
+    CellField::sRadius = cell_radius;
+    CellFieldArray slices(T,N,N,grid_spacing,Tstart,Tend);
+
+    // Have the particular tiling type mark iterations
+    // in each tile.
+    switch (tilingChoice) {
+    
+        case pipelined_4x4x4:
+            #include "pipelined-4x4x4.is"
+            break;
+        case diamonds_3x3x3:
+            #include "diamonds-tij-skew-3x3x3.is"
+            break;
+        case diamonds_6x6x6:
+            #include "diamonds-tij-skew-6x6x6.is"
+            break;
+        case diamonds_3x6x6:
+            #include "diamonds-tij-skew-3x6x6.is"
+            break;
+        case diamonds_6x3x6:
+            #include "diamonds-tij-skew-6x3x6.is"
+            break;
+        case diamonds_6x6x3:
+            #include "diamonds-tij-skew-6x6x3.is"
+            break;
+        case diamonds_9x9x9:
+            #include "diamonds-tij-skew-9x9x9.is"
+            break;
+        case diamonds_12x12x12:
+            #include "diamonds-tij-skew-12x12x12.is"
+            break;
+        case diamonds_15x15x15:
+            #include "diamonds-tij-skew-15x15x15.is"
+            break;
+        case diamonds_18x18x18:
+            #include "diamonds-tij-skew-18x18x18.is"
+            break;
+        case diamonds_21x21x21:
+            #include "diamonds-tij-skew-21x21x21.is"
+            break;
+        case diamond_prizms_6x6:
+            #include "diamond-prizms-skew-6x6.is"
+            break;
+        case diamond_prizms_8x8:
+            #include "diamond-prizms-skew-8x8.is"
+            break;
+        case diamond_prizms_12x12:
+            #include "diamond-prizms-skew-12x12.is"
+            break;
+        case diamond_prizms_6x6_noping:
+            #include "diamond-prizms-skew-noping-6x6.is"
+            break;
+
+        default:
+            std::cerr << "ERROR: slice-viz: unknown tiling type" << std::endl;
+    }  
+
+    // Print the array of iteration slices out to the file.
+    slices.printToSVG(svg,Tstart,Tend);
+    std::cout << "Generating file " << filename << std::endl;
+    
+    // End of the file.
+    svg.printFooter();
+
+    return 0;
+}
