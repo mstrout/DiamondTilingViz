@@ -2,7 +2,7 @@
 
 all: slice-viz diamond-slice-viz #diamond-slice-viz-pov
 
-IS_FILES = pipelined-4x4x4.is diamonds-tij-skew-3x3x3.is diamonds-tij-skew-3x6x6.is diamonds-tij-skew-6x3x6.is diamonds-tij-skew-6x6x3.is diamonds-tij-skew-6x6x6.is diamonds-tij-skew-9x9x9.is
+IS_FILES = pipelined-4x4x4.is
 
 slice-viz: slice-viz.cpp svgprinter.cpp svgprinter.hpp CellField.hpp CellField.cpp CellFieldArray.hpp CellFieldArray.cpp CmdParams.h CmdParams.c ${IS_FILES}
 	g++ -O0 -g -Wno-write-strings slice-viz.cpp svgprinter.cpp CellFieldArray.cpp CellField.cpp CmdParams.c -o slice-viz 

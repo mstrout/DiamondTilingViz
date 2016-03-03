@@ -30,6 +30,7 @@
 #endif
 
 #define floord(n, d)	intDiv((n), (d))
+#define ceild(n, d) intDiv_((n), (d)) + ((intMod_((n),(d))>0)?1:0)
 
 #if 0
 

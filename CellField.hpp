@@ -20,6 +20,8 @@ using namespace std;
 /**
  * Outputs an array of circles (cells) at a particular x and y offset.
  * All x and y positions are relative to the x and y start positions.
+ * Those start positions are pixel start positions.  The indices x and y
+ * must also start at 0 and be less than with width or height respectively.
  * Each circle may filled with a specified color and be labeled with text.  
  * A box may optionally be placed behind a region of cells.
  *

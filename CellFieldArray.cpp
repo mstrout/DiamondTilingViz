@@ -31,6 +31,7 @@ void CellFieldArray::printToSVG(SVGPrinter& svg_printer, int Tstart, int Tend) {
 }
 
 void CellFieldArray::setLabel(int t, int x, int y, string label) {
+    assert(t>=1 && t<mNumFields);
     mArray[t-1]->setLabel(x,y,label);
 }
 

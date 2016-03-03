@@ -8,6 +8,7 @@
  *
  * \authors Michelle Strout
  *
+ * Copyright (c) 2016, University of Arizona.
  * Copyright (c) 2013, Colorado State University <br>
  * All rights reserved. <br>
  */
@@ -20,12 +21,15 @@
 #include <sstream>
 #include <iostream>
 
+#include "intops.h"
+
 //==============================================
 // Global parameters with their default values.
 int T = 4;
 int Tstart = 1;
 int Tend = 4;
 int N = 10;
+int tau = 15;
 int grid_spacing = -1;
 int cell_spacing = 60;
 int cell_radius = 20;
@@ -39,35 +43,17 @@ int one_tile_c3 = -1;
 
 typedef enum {
     pipelined_4x4x4,
-    diamonds_3x3x3,
-    diamonds_6x6x6,
-    diamonds_3x6x6,
-    diamonds_6x3x6,
-    diamonds_6x6x3,
-    diamonds_9x9x9,
-    diamonds_12x12x12,
-    diamonds_15x15x15,
-    diamonds_18x18x18,
-    diamonds_21x21x21,
+    diamonds,
     diamond_prizms_6x6,
     diamond_prizms_8x8,
     diamond_prizms_12x12,
     diamond_prizms_6x6_noping
 } tiling_type;
-tiling_type tilingChoice = diamonds_3x3x3;
+tiling_type tilingChoice = diamonds;
 char tilingStr[MAXPOSSVALSTRING];
-#define num_TPairs 15
+#define num_TPairs 6
 static EnumStringPair TPairs[] = {{pipelined_4x4x4,"pipelined_4x4x4"},
-                        {diamonds_3x3x3,"diamonds_3x3x3"},
-                        {diamonds_6x6x6,"diamonds_6x6x6"},
-                        {diamonds_3x6x6,"diamonds_3x6x6"},
-                        {diamonds_6x3x6,"diamonds_6x3x6"},
-                        {diamonds_6x6x3,"diamonds_6x6x3"},
-                        {diamonds_9x9x9,"diamonds_9x9x9"},
-                        {diamonds_12x12x12,"diamonds_12x12x12"},
-                        {diamonds_15x15x15,"diamonds_15x15x15"},
-                        {diamonds_18x18x18,"diamonds_18x18x18"},
-                        {diamonds_21x21x21,"diamonds_21x21x21"},
+                        {diamonds,"diamonds"},
                         {diamond_prizms_6x6,"diamond_prizms_6x6"},
                         {diamond_prizms_8x8,"diamond_prizms_8x8"},
                         {diamond_prizms_12x12,"diamond_prizms_12x12"},
@@ -94,6 +80,7 @@ std::string create_file_name() {
     std::stringstream ss;
     ss << tilingStr;
     ss << "-T" << T << "N" << N;
+    ss << "-t" << tau;
     ss << "-s" << Tstart << "e" << Tend;
     ss << "-p" << grid_spacing 
        << "c" << cell_spacing << "r" << cell_radius << "l" << label;
@@ -118,11 +105,15 @@ void initParams(CmdParams * cmdparams)
 
     CmdParams_describeEnumParam(cmdparams, "tiling", 't', 1,
             "specify the tiling to use",
-            TPairs, num_TPairs, diamonds_3x3x3);
+            TPairs, num_TPairs, diamonds);
 
     CmdParams_describeNumParam(cmdparams,"numTimeSteps", 'T', 1,
             "number of time steps",
             1, 30, 4);
+
+    CmdParams_describeNumParam(cmdparams,"tau", 't', 1,
+            "tile size for diamond tiles (tau)",
+            3, 30, 15);
 
     CmdParams_describeNumParam(cmdparams,"Tstart", 's', 1,
             "start visualization at Tstart",
@@ -290,6 +281,17 @@ int c1, c2, c3, c4, c5, c6, c7, c8;
     if (!one_tile || (c1==one_tile_c1 && c2==one_tile_c2)) {\
       slices.setFill(t,i,j,tileCoordToColor(c1,c2,c2)); } }
 
+// Taking the ping and pong out of diamonds.
+#define calc_diamond(kt,k1,k2,t,i,j) { \
+    if (label) slices.setLabel(t,i,j,tileCoordToString(kt,k1,k2)); \
+    if (debug) { \
+      cout << "kt,k1,k2 = " << kt << ", " << k1 << ", " << k2 << "    "; \
+      cout << "t,i,j = " << t << ", " << i << ", " << j << std::endl; \
+    } \
+    if (!one_tile || (kt==one_tile_c1 && k1==one_tile_c2 && k2==one_tile_c3)) {\
+      slices.setFill(t,i,j,tileCoordToColor(kt,k1,k2)); } }
+    
+
 
 int main(int argc, char ** argv) {
     // Do command-line parsing.
@@ -339,7 +341,10 @@ int main(int argc, char ** argv) {
     // Declare the array of iteration spaces.
     CellField::sSpacing = cell_spacing;
     CellField::sRadius = cell_radius;
-    CellFieldArray slices(T,N,N,grid_spacing,Tstart,Tend);
+    // FIXME: the N+1 is so we can start our spatial dimensions at 1.
+    // The CellFieldArray handles the fact that T starts at 1, but not
+    // that N starts at 1.
+    CellFieldArray slices(T,N+1,N+1,grid_spacing,Tstart,Tend);
 
     // Have the particular tiling type mark iterations
     // in each tile.
@@ -348,35 +353,41 @@ int main(int argc, char ** argv) {
         case pipelined_4x4x4:
             #include "pipelined-4x4x4.is"
             break;
-        case diamonds_3x3x3:
-            #include "diamonds-tij-skew-3x3x3.is"
-            break;
-        case diamonds_6x6x6:
-            #include "diamonds-tij-skew-6x6x6.is"
-            break;
-        case diamonds_3x6x6:
-            #include "diamonds-tij-skew-3x6x6.is"
-            break;
-        case diamonds_6x3x6:
-            #include "diamonds-tij-skew-6x3x6.is"
-            break;
-        case diamonds_6x6x3:
-            #include "diamonds-tij-skew-6x6x3.is"
-            break;
-        case diamonds_9x9x9:
-            #include "diamonds-tij-skew-9x9x9.is"
-            break;
-        case diamonds_12x12x12:
-            #include "diamonds-tij-skew-12x12x12.is"
-            break;
-        case diamonds_15x15x15:
-            #include "diamonds-tij-skew-15x15x15.is"
-            break;
-        case diamonds_18x18x18:
-            #include "diamonds-tij-skew-18x18x18.is"
-            break;
-        case diamonds_21x21x21:
-            #include "diamonds-tij-skew-21x21x21.is"
+        case diamonds:
+            {
+            int kt, k1, k2, t, i, j;
+            int Li=1;
+            int Lj=1;
+            int Ui=N;
+            int Uj=N;
+            // Copied from ICS 2014 paper.
+            // Loop over tile wavefronts.
+            for (kt=ceild(3,tau)-3; kt<=floord(3*T,tau); kt++) {
+              // The next two loops iterate within a tile wavefront.
+              int k1_lb = ceild(3*Lj+2+(kt-2)*tau,tau*3);
+              int k1_ub = floord(3*Uj+(kt+2)*tau,tau*3);
+              //Loops over tile coordinates within a parallel tile wavefront.
+              for (k1 = k1_lb; k1 <= k1_ub; k1++) {
+                int k2_lb = floord((2*kt-2)*tau-3*Ui+2,tau*3)-k1;
+                int k2_ub = floord((2+2*kt)*tau-3*Li-2,tau*3)-k1;
+                for (k2 = k2_lb; k2 <= k2_ub; k2++) {
+                  // Loop over time within a tile.
+                  for (t = max(1, floord(kt*tau-1, 3)); 
+                       t < min(T+1, tau + floord(kt*tau, 3)); t++) {
+                    // Loops over the spatial dimensions within each tile.
+                    for (i = max(Li,max((kt-k1-k2)*tau-t, 2*t-(2+k1+k2)*tau+2));
+                         i <= min(Ui,min((1+kt-k1-k2)*tau-t-1, 
+                                         2*t-(k1+k2)*tau)); i++) {
+                      for (j = max(Lj,max(tau*k1-t, t-i-(1+k2)*tau+1));
+                           j <= min(Uj,min((1+k1)*tau-t-1, t-i-k2*tau)); j++) {
+                        calc_diamond(kt,k1,k2,t,i,j);
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            }
             break;
         case diamond_prizms_6x6:
             #include "diamond-prizms-skew-6x6.is"
