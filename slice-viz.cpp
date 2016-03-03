@@ -389,38 +389,6 @@ int main(int argc, char ** argv) {
             }
             }
             break;
-/*
-        case diamonds_3x3x3:
-            #include "diamonds-tij-skew-3x3x3.is"
-            break;
-        case diamonds_6x6x6:
-            #include "diamonds-tij-skew-6x6x6.is"
-            break;
-        case diamonds_3x6x6:
-            #include "diamonds-tij-skew-3x6x6.is"
-            break;
-        case diamonds_6x3x6:
-            #include "diamonds-tij-skew-6x3x6.is"
-            break;
-        case diamonds_6x6x3:
-            #include "diamonds-tij-skew-6x6x3.is"
-            break;
-        case diamonds_9x9x9:
-            #include "diamonds-tij-skew-9x9x9.is"
-            break;
-        case diamonds_12x12x12:
-            #include "diamonds-tij-skew-12x12x12.is"
-            break;
-        case diamonds_15x15x15:
-            #include "diamonds-tij-skew-15x15x15.is"
-            break;
-        case diamonds_18x18x18:
-            #include "diamonds-tij-skew-18x18x18.is"
-            break;
-        case diamonds_21x21x21:
-            #include "diamonds-tij-skew-21x21x21.is"
-            break;
-*/
         case diamond_prizms_6x6:
             #include "diamond-prizms-skew-6x6.is"
             break;
