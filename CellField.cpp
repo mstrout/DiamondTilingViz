@@ -1,6 +1,7 @@
 #include "CellField.hpp"
 
 #include <fstream>
+#include <assert.h>
 using namespace std;
 
 int CellField::sSpacing = 10;
@@ -63,14 +64,20 @@ void CellField::printToSVG(SVGPrinter& svg_printer) {
 }
 
 void CellField::setLabel(int x, int y, string label) {
+    assert(x>=0 && x<mWidth);
+    assert(y>=0 && y<mHeight);
     mLabel[x][y] = label;
 }
 
 void CellField::setStroke(int x, int y, string stroke) {
+    assert(x>=0 && x<mWidth);
+    assert(y>=0 && y<mHeight);
     mStroke[x][y] = stroke;
 }
 
 void CellField::setFill(int x, int y, string fill) {
+    assert(x>=0 && x<mWidth);
+    assert(y>=0 && y<mHeight);
     mFill[x][y] = fill;
 }
 
@@ -79,14 +86,20 @@ void CellField::setBox(int x1, int y1, int x2, int y2) {
 }
 
 string CellField::getLabel(int x, int y) {
+    assert(x>=0 && x<mWidth);
+    assert(y>=0 && y<mHeight);
    return(mLabel[x][y]);
 }
 
 string CellField::getStroke(int x, int y) {
+    assert(x>=0 && x<mWidth);
+    assert(y>=0 && y<mHeight);
    return(mStroke[x][y]);
 }
 
 string CellField::getFill(int x, int y) {
+    assert(x>=0 && x<mWidth);
+    assert(y>=0 && y<mHeight);
    return(mFill[x][y]);
 }
 
